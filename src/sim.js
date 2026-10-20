@@ -4,15 +4,22 @@ const IN = { x: 0, y: 0, shoot: false, sprint: false, passE: false, lobE: false,
 
 const G = {
   mode: 'attract', phase: 'idle', phaseT: 0, paused: false, time: 0,
-  teams: [], players: [], ball: null, user: null, controlled: null, lockT: 0,
-  clock: 0, len: 240, half: 1, firstKick: 0, diff: 'normale',
-  sp: null, next: null, charging: false, charge: 0, passHint: null, pressT: 0,
+  // user: la squadra di chi guarda; humans: le squadre guidate da persone; hs: stato di controllo per squadra
+  teams: [], players: [], ball: null, user: null, humans: [], hs: [mkHS(IN), mkHS(IN)],
+  clock: 0, len: 240, half: 1, firstKick: 0, diff: 'normale', tickN: 0,
+  sp: null, next: null,
   stats: [], ticker: [], parts: [], rec: [], recGoal: 0, replay: null, goalInfo: null,
   shake: 0, netKick: null, excite: 0, shootout: null, chase: [null, null], chase2: [null, null],
   cards: 0, hooks: {}
 };
 
 const STATES = ['ok', 'slide', 'down', 'dive', 'cele'];
+
+function mkHS(inp) { return { ctrl: null, charging: false, charge: 0, passHint: null, lockT: 0, pressT: 0, inp }; }
+const isHuman = ti => G.humans.includes(ti);
+const isCtrl = p => isHuman(p.ti) && G.hs[p.ti].ctrl === p;
+// il giocatore che guida chi guarda lo schermo
+const localCtrl = () => G.user !== null && G.hs[G.user] ? G.hs[G.user].ctrl : null;
 
 // ---------- utilità di squadra ----------
 const tX = (team, x) => team.dir > 0 ? x : FW - x;
@@ -23,6 +30,7 @@ function inBox(team, x, y) {
   return t >= -20 && t <= BOX_D && Math.abs(y - CY) <= BOX_W / 2;
 }
 function say(text) {
+  G.tickN++;
   G.ticker.push({ text, t: G.time });
   if (G.ticker.length > 3) G.ticker.shift();
 }
@@ -97,19 +105,23 @@ function makePlayers() {
 function newMatch(o) {
   const A = teamById(o.home), B = teamById(o.away);
   const clash = colorDist(A.home.shirt, B.home.shirt) < 130;
-  const attract = o.mode === 'attract';
+  const attract = o.mode === 'attract', online = o.mode === 'online';
   const skA = attract ? 0.86 + (A.rating - 3) * 0.05 : 0.9 + (A.rating - 3) * 0.05;
-  const skB = (attract ? 0.86 : DIFFS[o.diff].skill) + (B.rating - 3) * 0.05;
+  const skB = (attract ? 0.86 : online ? 0.9 : DIFFS[o.diff].skill) + (B.rating - 3) * 0.05;
   G.teams = [makeTeam(A, 0, 'home', skA), makeTeam(B, 1, clash ? 'away' : 'home', skB)];
-  G.mode = o.mode; G.diff = o.diff; G.len = o.len; G.user = attract ? null : 0;
+  G.mode = o.mode; G.diff = o.diff || 'normale'; G.len = o.len;
+  G.user = attract ? null : o.user !== undefined ? o.user : 0;
+  G.humans = attract ? [] : online ? [0, 1] : [0];
+  G.hs = [mkHS(o.inputs ? o.inputs[0] : IN), mkHS(o.inputs ? o.inputs[1] : IN)];
   G.stats = [makeStats(), makeStats()];
   G.clock = 0; G.half = 1; G.ticker = []; G.parts = []; G.rec = []; G.replay = null;
-  G.shootout = null; G.goalInfo = null; G.controlled = null; G.charging = false; G.charge = 0;
-  G.netKick = null; G.paused = false; G.passHint = null; G.cards = 0; G.result = null;
+  G.shootout = null; G.goalInfo = null; G.sp = null; G.next = null;
+  G.netKick = null; G.paused = false; G.cards = 0; G.result = null; G.forfeit = null;
   G.ball = { x: CX, y: CY, z: 0, vx: 0, vy: 0, vz: 0, owner: null, target: null, lastTouch: null,
     passFrom: null, shot: null, spin: 0, ang: 0, trail: [] };
   makePlayers();
   G.firstKick = Math.random() < 0.5 ? 0 : 1;
+  if (o.noStart) return;
   if (o.mode === 'shootout') {
     say('Sfida ai rigori: cinque tiri a testa');
     startShootout();
@@ -125,8 +137,9 @@ function release(p) {
   const b = G.ball;
   b.owner = null; b.target = null; b.passFrom = null; b.shot = null; b.lastTouch = p;
   p.kickCd = 0.28; p.hold = 0; p.immune = 0;
-  G.charging = false; G.charge = 0;
+  resetCharge();
 }
+function resetCharge() { for (const h of G.hs) { h.charging = false; h.charge = 0; } }
 function kickBall(p, dx, dy, speed, vz) {
   const b = G.ball, l = Math.hypot(dx, dy) || 1;
   release(p);
@@ -199,7 +212,7 @@ function take(p) {
   p.hold = 0;
   p.immune = p.role === 'gk' && inBox(p.team, p.x, p.y) ? 99 : 0.45;
   p.think = p.thinkInt * 0.6;
-  G.charging = false; G.charge = 0;
+  resetCharge();
 }
 function block(p) {
   const b = G.ball, d = Math.hypot(b.x - p.x, b.y - p.y) || 1;
@@ -309,7 +322,7 @@ function tackles() {
       continue;
     }
     const front = ((p.x - o.x) * o.fx + (p.y - o.y) * o.fy) / (dist(p, o) || 1) > 0.3;
-    const guard = o === G.controlled ? (DIFFS[G.diff] || DIFFS.normale).guard : 1;
+    const guard = isCtrl(o) ? (G.mode === 'online' ? 0.55 : (DIFFS[G.diff] || DIFFS.normale).guard) : 1;
     if (dBall < PR + BR + 2 && Math.random() < p.tackleP * (front ? 1 : 0.45) * guard) {
       take(p); o.kickCd = 0.5;
       return;
@@ -383,7 +396,7 @@ function physicsPlayers(dt) {
     }
     p.x += p.vx * dt; p.y += p.vy * dt;
     const sp = Math.hypot(p.vx, p.vy);
-    if (p !== G.controlled && p.state === 'ok' && sp > 30) {
+    if (!isCtrl(p) && p.state === 'ok' && sp > 30) {
       const k = Math.min(1, dt * 10);
       let fx = lerp(p.fx, p.vx / sp, k), fy = lerp(p.fy, p.vy / sp, k);
       const l = Math.hypot(fx, fy) || 1;
@@ -659,9 +672,12 @@ function setPiece(type, ti, x = CX, y = CY) {
   if (sp.tele) for (const [p, tg] of sp.targets) { p.x = tg.x; p.y = tg.y; p.vx = p.vy = 0; }
   Object.assign(b, { x, y, z: 0, vx: 0, vy: 0, vz: 0, owner: t, target: null, shot: null, passFrom: null, lastTouch: t });
   b.trail.length = 0;
-  G.sp = sp; G.phase = 'set'; G.charging = false; G.charge = 0;
-  if (G.user === ti) { G.controlled = t; G.lockT = 0; }
-  else if (G.user !== null) G.controlled = nearestOf(G.players.filter(p => p.ti === G.user && p.role !== 'gk'), x, y);
+  G.sp = sp; G.phase = 'set'; resetCharge();
+  for (const hi of G.humans) {
+    const h = G.hs[hi];
+    if (hi === ti) { h.ctrl = t; h.lockT = 0; }
+    else h.ctrl = nearestOf(G.players.filter(p => p.ti === hi && p.role !== 'gk'), x, y);
+  }
   if (type === 'penalty' && !G.shootout) say(`Sul dischetto ${t.name}`);
   if (type === 'kickoff' && G.mode !== 'attract') say(`${SP_LABEL.kickoff}: ${team.def.name}`);
 }
@@ -684,9 +700,9 @@ function setUpdate(dt) {
     }
   }
   t.vx = t.vy = t.dvx = t.dvy = 0;
-  const user = G.user !== null && G.user === sp.ti;
-  if (user) {
-    const d = inputDir();
+  if (isHuman(sp.ti)) {
+    const h = G.hs[sp.ti], inp = h.inp;
+    const d = inputDir(inp);
     if (sp.type === 'penalty') {
       // su e giù scelgono l'angolo della porta
       const og = oppGoalX(t.team), ty = CY + clamp(d.y, -1, 1) * (GH - 11);
@@ -708,12 +724,12 @@ function setUpdate(dt) {
       t.fx = nx / nl; t.fy = ny / nl;
     }
     if (sp.t > 0.45) {
-      if (IN.passE) { setKick('pass'); return; }
-      if (IN.lobE) { setKick('lob'); return; }
-      if (IN.shootE) G.charging = true;
-      if (G.charging) {
-        if (IN.shoot) G.charge = Math.min(1, G.charge + dt / 0.7);
-        else { setKick('shoot', Math.max(0.35, G.charge)); return; }
+      if (inp.passE) { setKick('pass'); return; }
+      if (inp.lobE) { setKick('lob'); return; }
+      if (inp.shootE) h.charging = true;
+      if (h.charging) {
+        if (inp.shoot) h.charge = Math.min(1, h.charge + dt / 0.7);
+        else { setKick('shoot', Math.max(0.35, h.charge)); return; }
       }
     }
   } else if (sp.t > sp.delay) {
@@ -800,8 +816,9 @@ function penaltyShot(t) {
 function penaltyReact(gk) {
   const b = G.ball;
   let side;
-  if (G.user !== null && gk.ti === G.user) {
-    side = Math.abs(IN.y) > 0.3 ? sgn(IN.y) : 0;
+  if (isHuman(gk.ti)) {
+    const iy = G.hs[gk.ti].inp.y;
+    side = Math.abs(iy) > 0.3 ? sgn(iy) : 0;
   } else {
     const t = (ownGoalX(gk.team) - b.x) / (b.vx || 1);
     const py = b.y + b.vy * t;
@@ -889,7 +906,7 @@ function tickClock(dt) {
 function endHalf() {
   G.sp = null;
   if (G.half === 1) {
-    G.phase = 'break'; G.phaseT = 2.5;
+    G.phase = 'break'; G.phaseT = G.mode === 'online' ? 7 : 2.5;
     Sound.whistle(2, true);
     say('Fine del primo tempo');
     if (G.hooks.halftime) G.hooks.halftime();
@@ -960,7 +977,8 @@ function startReplay() {
 function replayUpdate(dt) {
   const r = G.replay;
   r.i += dt * 60 * 0.55;
-  if ((IN.anyE && G.mode !== 'attract') || r.i >= r.frames.length - 1) { G.replay = null; return afterGoal(); }
+  const skip = IN.anyE && G.mode !== 'attract' && G.mode !== 'online';
+  if (skip || r.i >= r.frames.length - 1) { G.replay = null; return afterGoal(); }
   const f = r.frames[Math.floor(r.i)];
   const pb = { x: G.ball.x, y: G.ball.y };
   applyFrame(f);
@@ -1002,8 +1020,8 @@ function updateParts(dt) {
 }
 
 // ---------- controllo del giocatore ----------
-function inputDir() {
-  let x = IN.x, y = IN.y;
+function inputDir(inp) {
+  let x = inp.x, y = inp.y;
   const l = Math.hypot(x, y);
   if (l > 1) { x /= l; y /= l; }
   return { x, y };
@@ -1023,34 +1041,34 @@ function choosePassTarget(p, ax, ay) {
   }
   return best;
 }
-function pickControlled(dt) {
-  if (G.user === null) { G.controlled = null; return; }
-  G.lockT = Math.max(0, G.lockT - dt);
-  const b = G.ball;
-  if (b.owner && b.owner.ti === G.user) {
-    if (b.owner.role !== 'gk') G.controlled = b.owner;
+function pickControlled(ti, dt) {
+  const h = G.hs[ti], b = G.ball;
+  h.lockT = Math.max(0, h.lockT - dt);
+  h.pressT = Math.max(0, h.pressT - dt);
+  if (b.owner && b.owner.ti === ti) {
+    if (b.owner.role !== 'gk') h.ctrl = b.owner;
     return;
   }
-  if (!b.owner && b.target && b.target.ti === G.user && b.target.role !== 'gk') { G.controlled = b.target; return; }
+  if (!b.owner && b.target && b.target.ti === ti && b.target.role !== 'gk') { h.ctrl = b.target; return; }
   const px = b.x + b.vx * 0.3, py = b.y + b.vy * 0.3;
   let best = null, bd = 1e9;
   for (const p of G.players) {
-    if (p.ti !== G.user || p.role === 'gk') continue;
+    if (p.ti !== ti || p.role === 'gk') continue;
     const d = Math.hypot(p.x - px, p.y - py);
     if (d < bd) { bd = d; best = p; }
   }
-  const c = G.controlled;
-  if (!c || c.ti !== G.user || c.role === 'gk') { G.controlled = best; return; }
-  if (G.lockT > 0) return;
-  if (Math.hypot(c.x - px, c.y - py) > bd + 70) G.controlled = best;
+  const c = h.ctrl;
+  if (!c || c.ti !== ti || c.role === 'gk') { h.ctrl = best; return; }
+  if (h.lockT > 0) return;
+  if (Math.hypot(c.x - px, c.y - py) > bd + 70) h.ctrl = best;
 }
-function userControl(dt) {
-  const p = G.controlled, b = G.ball;
+function userControl(ti, dt) {
+  const h = G.hs[ti], inp = h.inp, p = h.ctrl, b = G.ball;
   if (!p) return;
   const has = b.owner === p;
-  const d = inputDir(), dl = Math.hypot(d.x, d.y);
-  if (p.state !== 'ok') { G.passHint = null; return; }
-  p.sprinting = IN.sprint && p.stamina > 0.04 && dl > 0.1;
+  const d = inputDir(inp), dl = Math.hypot(d.x, d.y);
+  if (p.state !== 'ok') { h.passHint = null; return; }
+  p.sprinting = inp.sprint && p.stamina > 0.04 && dl > 0.1;
   const sp = p.speed * (has ? 0.93 : 1) * (p.sprinting ? 1.32 : 1);
   p.dvx = d.x * sp; p.dvy = d.y * sp;
   if (dl > 0.2) {
@@ -1061,32 +1079,32 @@ function userControl(dt) {
   }
   if (has) {
     const ax = dl > 0.2 ? d.x / dl : p.fx, ay = dl > 0.2 ? d.y / dl : p.fy;
-    G.passHint = choosePassTarget(p, ax, ay);
-    if (IN.passE) {
-      if (G.passHint) passTo(p, G.passHint, false); else passInto(p, ax, ay, false);
-    } else if (IN.lobE) {
-      if (G.passHint) passTo(p, G.passHint, true); else passInto(p, ax, ay, true);
+    h.passHint = choosePassTarget(p, ax, ay);
+    if (inp.passE) {
+      if (h.passHint) passTo(p, h.passHint, false); else passInto(p, ax, ay, false);
+    } else if (inp.lobE) {
+      if (h.passHint) passTo(p, h.passHint, true); else passInto(p, ax, ay, true);
     } else {
-      if (IN.shootE) G.charging = true;
-      if (G.charging) {
-        if (IN.shoot) G.charge = Math.min(1, G.charge + dt / 0.7);
-        else userShoot(p, Math.max(0.35, G.charge));
+      if (inp.shootE) h.charging = true;
+      if (h.charging) {
+        if (inp.shoot) h.charge = Math.min(1, h.charge + dt / 0.7);
+        else userShoot(p, Math.max(0.35, h.charge));
       }
     }
   } else {
-    G.passHint = null;
-    G.charging = false; G.charge = 0;
-    if (IN.shootE) doSlide(p, dl > 0.2 ? d.x : p.fx, dl > 0.2 ? d.y : p.fy);
-    if (IN.passE) {
+    h.passHint = null;
+    h.charging = false; h.charge = 0;
+    if (inp.shootE) doSlide(p, dl > 0.2 ? d.x : p.fx, dl > 0.2 ? d.y : p.fy);
+    if (inp.passE) {
       let best = null, bd = 1e9;
       for (const q of G.players) {
-        if (q.ti !== G.user || q.role === 'gk' || q === p) continue;
+        if (q.ti !== ti || q.role === 'gk' || q === p) continue;
         const dd = dist(q, b);
         if (dd < bd) { bd = dd; best = q; }
       }
-      if (best) { G.controlled = best; G.lockT = 0.9; }
+      if (best) { h.ctrl = best; h.lockT = 0.9; }
     }
-    if (IN.lobE) { G.pressT = 2.2; say('Pressing!'); }
+    if (inp.lobE) { h.pressT = 2.2; if (ti === G.user) say('Pressing!'); }
   }
 }
 
@@ -1114,15 +1132,15 @@ function computeChasers() {
       .sort((a, c) => a.t - c.t);
     if (!cands.length) continue;
     const bt = tX(team, b.x);
-    if (team.idx === G.user) {
-      const c = G.controlled;
+    if (isHuman(team.idx)) {
+      const h = G.hs[team.idx], c = h.ctrl;
       const others = cands.filter(k => k.p !== c);
       if (!others.length) continue;
       const ct = c ? Math.hypot(c.x - px, c.y - py) / c.speed : 99;
       if (!b.owner) { if (others[0].t < ct - 0.35) G.chase[team.idx] = others[0].p; }
       else {
         // i compagni aiutano quando il tuo giocatore è lontano o la palla è vicina alla tua porta
-        if (G.pressT > 0 || bt < 420 || ct > 1.2) G.chase[team.idx] = others[0].p;
+        if (h.pressT > 0 || bt < 420 || ct > 1.2) G.chase[team.idx] = others[0].p;
         if (others[1] && bt < 480) G.chase2[team.idx] = others[1].p;
       }
       continue;
@@ -1157,7 +1175,7 @@ function aiPress(p, dt) {
   const d = dist(p, b);
   if (d < 62 && d > 26) {
     const dot = ((b.x - p.x) * p.fx + (b.y - p.y) * p.fy) / d;
-    const rate = p.ti === G.user ? 0.2 : 0.15 + 0.4 * p.skill;
+    const rate = isHuman(p.ti) ? 0.2 : 0.15 + 0.4 * p.skill;
     if (dot > 0.75 && Math.random() < dt * rate) { doSlide(p, b.x - p.x, b.y - p.y); p.slideCd = rnd(2.5, 4.5); }
   }
 }
@@ -1374,11 +1392,10 @@ function playUpdate(dt) {
   tickClock(dt);
   if (G.phase !== 'play') return;
   cooldowns(dt);
-  G.pressT = Math.max(0, G.pressT - dt);
-  pickControlled(dt);
-  if (G.controlled && !G.shootout) userControl(dt);
+  for (const ti of G.humans) pickControlled(ti, dt);
+  if (!G.shootout) for (const ti of G.humans) userControl(ti, dt);
   computeChasers();
-  for (const p of G.players) if (p !== G.controlled) ai(p, dt);
+  for (const p of G.players) if (G.shootout || !isCtrl(p)) ai(p, dt);
   physicsPlayers(dt);
   ballUpdate(dt);
   if (G.phase !== 'play') return;
@@ -1441,7 +1458,11 @@ function step(dt) {
     case 'goal': goalUpdate(dt); break;
     case 'replay': replayUpdate(dt); break;
     case 'break':
-      if (G.mode === 'attract') {
+      if (G.mode === 'online' && G.half === 1 && !G.result) {
+        // in rete l'intervallo dura pochi secondi, poi riparte da solo
+        G.phaseT -= dt;
+        if (G.phaseT <= 0) secondHalf();
+      } else if (G.mode === 'attract') {
         G.phaseT -= dt;
         if (G.phaseT <= 0) { if (G.half === 1) secondHalf(); else if (G.hooks.attractEnd) G.hooks.attractEnd(); }
       }
@@ -1456,4 +1477,8 @@ function step(dt) {
   }
   clearEdges();
 }
-function clearEdges() { IN.passE = IN.lobE = IN.shootE = IN.anyE = false; }
+function clearEdges() {
+  for (const inp of [IN, G.hs[0] && G.hs[0].inp, G.hs[1] && G.hs[1].inp]) {
+    if (inp) inp.passE = inp.lobE = inp.shootE = inp.anyE = false;
+  }
+}

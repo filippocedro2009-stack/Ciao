@@ -384,21 +384,24 @@ function drawFlashes(c) {
 
 // ---------- indicatori nel mondo ----------
 function drawMarkers(c) {
-  const p = G.controlled;
-  if (p && G.user !== null && (G.phase === 'play' || G.phase === 'set')) {
-    c.strokeStyle = '#f4c64f'; c.lineWidth = 2.5;
-    c.beginPath(); c.ellipse(p.x, p.y + 2, 18, 13, 0, 0, TAU); c.stroke();
+  if (!(G.phase === 'play' || G.phase === 'set')) return;
+  for (const ti of G.humans) {
+    const q = G.hs[ti] && G.hs[ti].ctrl;
+    if (!q) continue;
+    // il tuo giocatore in oro, quello dell'avversario online nel colore della sua maglia
+    c.strokeStyle = ti === G.user ? '#f4c64f' : teamInk(q.team); c.lineWidth = ti === G.user ? 2.5 : 2;
+    c.beginPath(); c.ellipse(q.x, q.y + 2, 18, 13, 0, 0, TAU); c.stroke();
   }
-  const h = G.passHint;
-  if (h && G.phase === 'play' && G.ball.owner === G.controlled) {
+  const p = localCtrl(), h = G.user !== null && G.hs[G.user] ? G.hs[G.user].passHint : null;
+  if (h && G.phase === 'play' && p && G.ball.owner === p) {
     c.strokeStyle = 'rgba(255,255,255,0.75)'; c.lineWidth = 2; c.setLineDash([5, 5]);
     c.beginPath(); c.ellipse(h.x, h.y + 2, 17, 12, 0, 0, TAU); c.stroke();
     c.setLineDash([]);
   }
 }
 function drawTags(c) {
-  const p = G.controlled;
-  if (!p || G.user === null || !(G.phase === 'play' || G.phase === 'set')) return;
+  const p = localCtrl(), hs = G.user !== null ? G.hs[G.user] : null;
+  if (!p || !(G.phase === 'play' || G.phase === 'set')) return;
   const top = p.y - 28;
   c.fillStyle = '#f4c64f';
   c.beginPath(); c.moveTo(p.x, top + 6); c.lineTo(p.x - 6, top - 3); c.lineTo(p.x + 6, top - 3); c.fill();
@@ -406,10 +409,10 @@ function drawTags(c) {
   const label = `${p.n} ${p.name}`;
   c.lineWidth = 3; c.strokeStyle = 'rgba(0,0,0,0.6)'; c.strokeText(label, p.x, top - 7);
   c.fillStyle = '#ffffff'; c.fillText(label, p.x, top - 7);
-  if (G.charging && G.charge > 0) {
+  if (hs.charging && hs.charge > 0) {
     const w = 40, x = p.x - w / 2, y = top - 30;
     c.fillStyle = 'rgba(0,0,0,0.6)'; c.fillRect(x - 1, y - 1, w + 2, 7);
-    c.fillStyle = G.charge > 0.82 ? '#e8483c' : '#f4c64f'; c.fillRect(x, y, w * G.charge, 5);
+    c.fillStyle = hs.charge > 0.82 ? '#e8483c' : '#f4c64f'; c.fillRect(x, y, w * hs.charge, 5);
   }
   if (p.stamina < 0.98) {
     const w = 28, x = p.x - w / 2, y = p.y + 19;
@@ -456,8 +459,9 @@ function drawRadar(c) {
     Math.min(rw, cam.vw * sx), Math.min(rh, vh * sx));
   for (const p of G.players) {
     const x = rx + clamp(p.x, 0, FW) * sx, y = ry + clamp(p.y, 0, FH) * sx;
-    dot(c, x, y, p === G.controlled ? 3.8 : 2.7, teamInk(p.team));
-    if (p === G.controlled) { c.strokeStyle = '#ffffff'; c.lineWidth = 1.2; c.beginPath(); c.arc(x, y, 3.8, 0, TAU); c.stroke(); }
+    const mine = p === localCtrl();
+    dot(c, x, y, mine ? 3.8 : 2.7, teamInk(p.team));
+    if (mine) { c.strokeStyle = '#ffffff'; c.lineWidth = 1.2; c.beginPath(); c.arc(x, y, 3.8, 0, TAU); c.stroke(); }
   }
   dot(c, rx + clamp(G.ball.x, 0, FW) * sx, ry + clamp(G.ball.y, 0, FH) * sx, 2.3, '#ffffff');
 }
@@ -513,9 +517,27 @@ function drawShootout(c) {
     }
   }
 }
+function drawNetBadge(c) {
+  const n = G.netInfo;
+  if (!n) return;
+  const fs = clamp(RD.w / 70, 11, 14);
+  c.font = `600 ${fs}px ${BODY}`;
+  const text = `${n.left} · ${n.right}`;
+  const w = c.measureText(text).width + 22, h = fs + 12;
+  pill(c, 12, 12, w, h, 4, 'rgba(6,12,10,0.74)');
+  c.fillStyle = '#eef2ea'; c.textAlign = 'left'; c.textBaseline = 'middle';
+  c.fillText(text, 23, 12 + h / 2 + 1);
+  if (n.lag > 1.5) {
+    const t = 'Connessione instabile…';
+    const tw = c.measureText(t).width + 22;
+    pill(c, 12, 18 + h, tw, h, 4, 'rgba(232,72,60,0.85)');
+    c.fillStyle = '#ffffff'; c.fillText(t, 23, 18 + h + h / 2 + 1);
+  }
+}
 function drawHUD(c) {
   if (G.mode === 'attract') return;
   drawRadar(c);
+  if (G.mode === 'online' && G.phase !== 'replay') drawNetBadge(c);
   if (G.shootout) drawShootout(c);
   const top = G.shootout ? 80 : 12;
   if (G.phase === 'set' && G.sp && G.sp.type !== 'kickoff') {
@@ -534,7 +556,7 @@ function drawHUD(c) {
     if (blink) dot(c, 27, 27, 5, '#e8483c');
     c.font = `600 22px ${DISPLAY}`; c.fillStyle = '#ffffff'; c.textAlign = 'left'; c.textBaseline = 'middle';
     c.fillText('REPLAY', 38, 29);
-    hintLine(c, RD.touch ? 'Tocca per saltare' : 'Premi un tasto per saltare', RD.h - 40);
+    if (G.mode !== 'online') hintLine(c, RD.touch ? 'Tocca per saltare' : 'Premi un tasto per saltare', RD.h - 40);
   }
   if (G.phase === 'goal') {
     const gi = G.goalInfo;

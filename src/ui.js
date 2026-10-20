@@ -14,12 +14,12 @@
   if (!LENGTHS.some(l => l.v === save.len)) save.len = 240;
   const persist = () => { try { localStorage.setItem(STORE, JSON.stringify(save)); } catch (e) { /* ignora */ } };
 
-  let screen = null, setupMode = 'friendly', lastMatch = null, helpFrom = 'scrMenu';
+  let screen = null, setupMode = 'friendly', lastMatch = null, helpFrom = 'scrMenu', rankFrom = 'scrMenu';
   let resultRecorded = false, pendingBreak = null;
   const picks = { a: save.team, b: save.opp };
 
   // ---------- schermate ----------
-  const SCREENS = ['scrMenu', 'scrSetup', 'scrCup', 'scrPause', 'scrBreak', 'scrHelp'];
+  const SCREENS = ['scrMenu', 'scrSetup', 'scrCup', 'scrPause', 'scrBreak', 'scrHelp', 'scrOnline', 'scrRank'];
   function show(id) {
     for (const s of SCREENS) $(s).hidden = s !== id;
     screen = id;
@@ -74,13 +74,16 @@
   }
   function toMenu() {
     G.paused = false; pendingBreak = null;
+    if (Net.inMatch()) Net.quit();
+    Net.closeLobby(); Net.unwatchBoard();
     if (G.mode !== 'attract') startAttract();
     updateCupNote();
     show('scrMenu');
   }
   G.hooks.attractEnd = startAttract;
-  G.hooks.halftime = () => { if (G.mode !== 'attract') pendingBreak = { at: performance.now() + 1300, final: false }; };
-  G.hooks.fulltime = () => { if (G.mode !== 'attract') pendingBreak = { at: performance.now() + 1700, final: true }; };
+  // le partite online gestiscono intervallo e fine partita in net.js, per entrambi i giocatori
+  G.hooks.halftime = () => { if (G.mode !== 'attract' && G.mode !== 'online') pendingBreak = { at: performance.now() + 1300, final: false }; };
+  G.hooks.fulltime = () => { if (G.mode !== 'attract' && G.mode !== 'online') pendingBreak = { at: performance.now() + 1700, final: true }; };
 
   // ---------- tabellone ----------
   let boardKey = '';
@@ -328,18 +331,210 @@
     show('scrBreak');
   }
 
+  // ---------- online ----------
+  let netStatusMsg = '';
+  const fmtRecord = r => `${r.w}V ${r.d}N ${r.l}P`;
+  function tierChip(rating) {
+    const t = Net.tierOf(rating), el = document.createElement('span');
+    el.className = 'tier'; el.textContent = t.name; el.style.setProperty('--tc', t.col);
+    return el;
+  }
+  function formEl(form) {
+    const el = document.createElement('span');
+    el.className = 'form';
+    for (const ch of String(form || '')) {
+      const i = document.createElement('i');
+      i.textContent = ch; i.className = ch === 'V' ? 'fw' : ch === 'P' ? 'fl' : 'fd';
+      el.appendChild(i);
+    }
+    return el;
+  }
+  function el(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+  function openOnline() {
+    Sound.unlock();
+    if (G.mode !== 'attract' && !Net.inMatch()) startAttract();
+    Net.openLobby();
+    netStatusMsg = '';
+    renderOnline();
+    show('scrOnline');
+  }
+  function renderOnline() {
+    const st = Net.state();
+    const status = $('onStatus');
+    if (!st.tried) status.textContent = 'Collegamento alla sala in corso…';
+    else if (!st.online) status.textContent = 'La modalità online funziona nella pagina pubblicata su claude.ai: condividila con un amico e apritela entrambi.';
+    else if (st.connecting) status.textContent = netStatusMsg || 'Collegamento alla partita…';
+    else status.textContent = st.notice || 'Sfida chi è in sala. Chi viene sfidato vede la richiesta e può accettare.';
+    // la tua scheda
+    const me = st.me, card = $('onMe');
+    card.innerHTML = '';
+    const pickRow = el('div', 'prow');
+    const prev = el('button', 'arrow', '‹'), next = el('button', 'arrow', '›');
+    prev.type = next.type = 'button';
+    prev.setAttribute('aria-label', 'Squadra precedente'); next.setAttribute('aria-label', 'Squadra successiva');
+    const cycleTeam = d => {
+      const ids = TEAMS.map(t => t.id), i = ids.indexOf(st.team);
+      Net.setTeam(ids[(i + d + ids.length) % ids.length]); Sound.click(); renderOnline();
+    };
+    prev.addEventListener('click', () => cycleTeam(-1)); next.addEventListener('click', () => cycleTeam(1));
+    pickRow.append(prev, crestEl(teamById(st.team), 'mini'), next);
+    const info = el('div', 'oninfo');
+    info.append(el('div', 'pname', teamById(st.team).name));
+    const line = el('div', 'onrate');
+    line.append(el('b', '', String(me.rating)), el('span', '', ' punti '), tierChip(me.rating));
+    info.append(line, el('div', 'onrec', me.played ? `${fmtRecord(me)} · ${me.played} partite` : 'Nessuna partita classificata'));
+    if (me.form) info.append(formEl(me.form));
+    card.append(pickRow, info);
+    $('onWarn').hidden = !(st.online && (!st.ranked || st.writeOk === false));
+    $('onWarn').textContent = !st.ranked ? 'Le partite online di questa visita non entrano in classifica.' : 'Il tuo punteggio non viene salvato: per entrare in classifica serve l\'accesso da Collaboratore a questa pagina.';
+    // sfida in arrivo
+    const inc = $('onIncoming');
+    inc.hidden = !st.incoming;
+    if (st.incoming) {
+      inc.innerHTML = '';
+      const txt = el('p', '');
+      txt.append(el('b', '', st.incoming.name), document.createTextNode(` ti sfida con ${teamById(st.incoming.team).name} (${st.incoming.r} punti), partita da ${Math.round(st.incoming.len / 60)} minuti.`));
+      const row = el('div', 'row');
+      const ok = el('button', 'primary', 'Accetta'), no = el('button', 'ghost', 'Rifiuta');
+      ok.type = no.type = 'button';
+      ok.addEventListener('click', () => { Net.accept(); renderOnline(); });
+      no.addEventListener('click', () => Net.decline());
+      row.append(ok, no);
+      inc.append(txt, row);
+    }
+    // giocatori in sala
+    const list = $('onList');
+    list.innerHTML = '';
+    if (st.online && !st.peers.length) {
+      list.append(el('p', 'empty', 'Nessun altro giocatore in sala. Condividi questa pagina con un amico: quando apre Online, compare qui.'));
+    }
+    for (const p of st.peers) {
+      const row = el('div', 'onrow');
+      const who = el('div', 'onwho');
+      const nm = el('span', 'nm', p.name);
+      who.append(nm);
+      if (p.guest) who.append(el('span', 'tag', 'ospite'));
+      const team = teamById(p.team);
+      const tdot = el('span', 'dotc'); tdot.style.background = team.home.shirt;
+      const meta = el('div', 'onmeta');
+      meta.append(tdot, document.createTextNode(` ${team.short} · ${p.r} `), tierChip(p.r));
+      const act = el('div', 'onact');
+      if (st.challenge && st.challenge.to === p.peer) {
+        act.append(el('span', 'wait', 'In attesa…'));
+        const c = el('button', 'ghost', 'Annulla'); c.type = 'button';
+        c.addEventListener('click', () => Net.cancelChallenge());
+        act.append(c);
+      } else if (p.busy) {
+        act.append(el('span', 'wait', 'In partita'));
+      } else {
+        const b = el('button', '', 'Sfida'); b.type = 'button';
+        b.disabled = !!st.challenge || st.connecting;
+        b.addEventListener('click', () => { Net.setLen(save.len); Net.challenge(p.peer); });
+        act.append(b);
+      }
+      row.append(who, meta, act);
+      list.append(row);
+    }
+  }
+  function showOnlineHalf() {
+    showBreak(false);
+    $('brNote').hidden = false;
+    $('brNote').textContent = 'Il secondo tempo inizia tra pochi secondi.';
+    $('brButtons').innerHTML = '';
+  }
+  function showOnlineEnd(info) {
+    const [A, B] = G.teams;
+    $('brKicker').textContent = info.forfeit ? 'Vittoria a tavolino' : 'Fischio finale';
+    $('brTitle').textContent = info.score === 1 ? 'Hai vinto!' : info.score === 0 ? 'Hai perso' : 'Pareggio';
+    const sc = $('brScore');
+    sc.innerHTML = '';
+    sc.append(crestEl(A.def, 'mini'), el('span', '', `${A.score} – ${B.score}`), crestEl(B.def, 'mini'));
+    const note = $('brNote');
+    note.hidden = false;
+    note.innerHTML = '';
+    if (info.forfeit) note.append(el('span', '', `${info.opp} ha lasciato la partita. `));
+    if (info.ranked) {
+      const d = info.after - info.before;
+      note.append(document.createTextNode(`Classifica: ${info.before} → `), el('b', '', String(info.after)), document.createTextNode(` (${d >= 0 ? '+' : ''}${d}) `), tierChip(info.after));
+    } else note.append(document.createTextNode('Partita non classificata.'));
+    const stats = $('brStats');
+    stats.hidden = false;
+    stats.innerHTML = statRows();
+    const row = $('brButtons');
+    row.innerHTML = '';
+    row.append(button('Torna alla sala', 'primary', openOnline), button('Classifica', 'ghost', () => openRank('scrBreak')), button('Menu', 'ghost', toMenu));
+    show('scrBreak');
+  }
+  function openRank(from) {
+    rankFrom = from || 'scrMenu';
+    const tb = $('rkTable');
+    tb.innerHTML = '<tbody><tr><td class="empty">Caricamento della classifica…</td></tr></tbody>';
+    renderTiers();
+    Net.watchBoard(rows => {
+      tb.innerHTML = '';
+      if (rows === null) { tb.innerHTML = '<tbody><tr><td class="empty">La classifica è disponibile nella pagina pubblicata su claude.ai.</td></tr></tbody>'; return; }
+      if (!rows.length) { tb.innerHTML = '<tbody><tr><td class="empty">Ancora nessuna partita classificata. Gioca online per aprire la classifica.</td></tr></tbody>'; return; }
+      const head = el('thead'), hr = el('tr');
+      for (const h of ['#', 'Giocatore', 'Divisione', 'Punti', 'V N P', 'Forma']) hr.append(el('th', '', h));
+      head.append(hr);
+      const body = el('tbody');
+      rows.forEach((r, i) => {
+        const tr = el('tr', r.me ? 'me' : '');
+        const team = TEAMS.find(t => t.id === r.team);
+        const who = el('td', 'who');
+        if (team) { const d = el('span', 'dotc'); d.style.background = team.home.shirt; who.append(d); }
+        who.append(el('span', 'nm', r.name));
+        if (r.me) who.append(el('span', 'tag', 'tu'));
+        const tierTd = el('td'); tierTd.append(tierChip(r.rating));
+        const formTd = el('td'); formTd.append(formEl(r.form));
+        tr.append(el('td', 'pos', String(i + 1)), who, tierTd, el('td', 'pts', String(r.rating)), el('td', 'rec', fmtRecord(r)), formTd);
+        body.append(tr);
+      });
+      tb.append(head, body);
+    });
+    show('scrRank');
+  }
+  function renderTiers() {
+    const box = $('rkTiers');
+    box.innerHTML = '';
+    for (const r of [900, 1050, 1200, 1350, 1500].reverse().concat([0])) {
+      const t = Net.tierOf(r), item = el('span', 'tieritem');
+      item.append(tierChip(r), document.createTextNode(r ? ` da ${t.min}` : ' sotto 900'));
+      box.append(item);
+    }
+  }
+  function closeRank() { Net.unwatchBoard(); if (rankFrom === 'scrOnline') openOnline(); else if (rankFrom === 'scrBreak') show('scrBreak'); else show('scrMenu'); }
+  $('mOnline').addEventListener('click', openOnline);
+  $('mRank').addEventListener('click', () => openRank('scrMenu'));
+  $('onRank').addEventListener('click', () => openRank('scrOnline'));
+  $('onBack').addEventListener('click', toMenu);
+  $('rkBack').addEventListener('click', closeRank);
+  buildSeg('segOnLen', LENGTHS, save.len, v => { save.len = v; persist(); });
+
   // ---------- pausa e aiuto ----------
   function togglePause() {
     if (screen === 'scrPause') { G.paused = false; show(null); return; }
     if (screen === 'scrHelp') { show(helpFrom); return; }
-    if (screen === 'scrSetup' || screen === 'scrCup') { toMenu(); return; }
+    if (screen === 'scrRank') { closeRank(); return; }
+    if (screen === 'scrSetup' || screen === 'scrCup' || screen === 'scrOnline') { toMenu(); return; }
     if (screen) return;
     if (G.mode === 'attract' || G.phase === 'break') return;
-    G.paused = true; keys.clear(); IN.shoot = false;
+    const online = Net.inMatch();
+    // in rete il tempo non si ferma: il menu resta aperto mentre la partita continua
+    if (!online) G.paused = true;
+    keys.clear(); IN.shoot = false;
+    $('pauseTitle').textContent = online ? 'Partita online' : 'Pausa';
+    $('pauseNote').hidden = !online;
+    $('pQuit').textContent = online ? 'Abbandona (conta come sconfitta)' : 'Abbandona la partita';
     show('scrPause');
   }
   $('pResume').addEventListener('click', togglePause);
-  $('pQuit').addEventListener('click', toMenu);
+  $('pQuit').addEventListener('click', () => { if (Net.inMatch()) { Net.quit(); openOnline(); } else toMenu(); });
   $('pHelp').addEventListener('click', () => { helpFrom = 'scrPause'; show('scrHelp'); });
   $('mHelp').addEventListener('click', () => { helpFrom = 'scrMenu'; show('scrHelp'); });
   $('hBack').addEventListener('click', () => show(helpFrom));
@@ -365,7 +560,7 @@
       else app.requestFullscreen().catch(() => {});
     } catch (e) { /* non supportato */ }
   });
-  document.addEventListener('visibilitychange', () => { if (document.hidden && !screen && G.mode !== 'attract' && !G.paused) togglePause(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden && !screen && G.mode !== 'attract' && G.mode !== 'online' && !G.paused) togglePause(); });
 
   // ---------- tastiera ----------
   const keys = new Set();
@@ -471,10 +666,17 @@
     const dt = Math.min(0.1, (now - last) / 1000);
     last = now;
     pollPad(); mergeInput();
-    acc += dt;
-    let n = 0;
-    while (acc >= DT && n < 5) { step(DT); acc -= DT; n++; }
-    if (n === 5) acc = 0;
+    if (Net.isGuest()) {
+      // chi è stato sfidato non simula: riceve lo stato dall'altro giocatore
+      acc = 0;
+      Net.frame(dt);
+    } else {
+      acc += dt;
+      let n = 0;
+      while (acc >= DT && n < 5) { step(DT); acc -= DT; n++; }
+      if (n === 5) acc = 0;
+      Net.frame(dt);
+    }
     if (pendingBreak && now >= pendingBreak.at) { const f = pendingBreak.final; pendingBreak = null; showBreak(f); }
     render(dt);
     updateBoard();
@@ -487,11 +689,24 @@
   if (window.ResizeObserver) new ResizeObserver(rResize).observe($('cv'));
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { RD.key = ''; });
   syncSound();
+  Net.init({
+    show,
+    netChanged() { if (screen === 'scrOnline') renderOnline(); },
+    netStatus(msg) { netStatusMsg = msg; if (screen === 'scrOnline') renderOnline(); },
+    enterMatch() {
+      Sound.unlock(); Sound.quiet = false;
+      keys.clear(); pendingBreak = null; RD.snap = true;
+      show(null); updateBoard(true);
+    },
+    onlineHalf: showOnlineHalf,
+    onlineEnd: showOnlineEnd,
+    backToLobby: openOnline
+  });
   startAttract();
   updateCupNote();
   show('scrMenu');
   requestAnimationFrame(t => { last = t; frame(t); });
 
   // accesso per test e debug dalla console
-  window.CN = { G, IN, RD, step, startMatch, toMenu, fast(n) { for (let i = 0; i < n; i++) step(DT); } };
+  window.CN = { G, IN, RD, Net, step, startMatch, toMenu, openOnline, fast(n) { for (let i = 0; i < n; i++) step(DT); } };
 })();
