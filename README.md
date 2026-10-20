@@ -5,6 +5,7 @@ Calcio a 7 nel browser, sotto i riflettori. Apri `index.html` e gioca: non serve
 ## Modalità
 
 - **Online**: sfida in tempo reale chi ha la pagina aperta. Entri nella sala d'attesa, scegli la squadra e lanci la sfida; chi la riceve può accettare o rifiutare. Le partite sono classificate.
+- **Campionato**: fondi il tuo club (nome, sigla, prima e seconda maglia, portiere, stemma), gioca 14 giornate contro 7 squadre e guadagna crediti. Con i crediti alleni i giocatori un punto alla volta o compri rinforzi al mercato. A fine stagione c'è un premio in base al piazzamento e le altre squadre si rinforzano.
 - **Amichevole**: scegli la tua squadra, l'avversario, la difficoltà e la durata.
 - **Coppa Notturna**: otto squadre a eliminazione diretta, dai quarti alla finale. Se finisce pari si va ai rigori. Il tabellone resta salvato nel browser.
 - **Sfida ai rigori**: cinque tiri a testa, poi a oltranza.
@@ -24,15 +25,22 @@ L'online funziona nella pagina pubblicata su claude.ai, aperta da persone con cu
 | --- | --- | --- | --- |
 | Muovi | WASD o frecce | Levetta sinistra | Joystick |
 | Passaggio rasoterra | X o K | A | Passa |
-| Lancio o cross | C o L | X o Y | Lancio |
+| Lancio o cross | C o L | X | Lancio |
 | Tiro (tieni premuto per caricare) | Spazio o J | B | Tiro |
+| Tiro a giro (tieni premuto e rilascia) | Q o U | Y | Giro |
+| Finta di tiro | F, oppure passaggio mentre carichi il tiro | LT, oppure A mentre tieni B | Passa mentre tieni Tiro |
+| Allungo della palla | V o O | LB | Doppio tocco su Scatto |
 | Scatto | Shift | RB o RT | Scatto |
 | Senza palla: scivolata | Spazio | B | Tiro |
 | Senza palla: cambia giocatore | X | A | Passa |
-| Senza palla: pressing di un compagno | C | X o Y | Lancio |
+| Senza palla: pressing di un compagno | C | X | Lancio |
 | Pausa | P o Esc | Start | Pausa |
 
 Sui rigori, su e giù scelgono l'angolo; quando para il tuo portiere, tieni su o giù per scegliere dove tuffarti.
+
+## Giocatori e attributi
+
+Ogni giocatore ha sei attributi da 20 a 99: velocità, tiro, passaggio, contrasto, resistenza e portiere. Determinano velocità di corsa, precisione e potenza dei tiri, precisione dei passaggi, probabilità di rubare palla, consumo dello scatto e parate. Nelle altre modalità gli attributi derivano dalla forza della squadra; in campionato quelli del tuo club sono i tuoi.
 
 ## Com'è fatto
 
@@ -41,6 +49,7 @@ Sui rigori, su e giù scelgono l'angolo; quando para il tuo portiere, tieni su o
 - `src/sim.js`: fisica del pallone con altezza, regole, calci piazzati, rigori, replay e intelligenza artificiale
 - `src/render.js`: stadio, giocatori animati, porte in pseudo-3D, radar e grafica a schermo
 - `src/net.js`: sala d'attesa, sfide, partite online e classifica Elo
+- `src/league.js`: campionato, calendario, classifica, allenamento, mercato ed editor del club
 - `src/ui.js`: menu, coppa, statistiche, tastiera, touch e gamepad
 
 Dalla console del browser `CN.fast(n)` fa avanzare la simulazione di `n` passi, utile per i test.

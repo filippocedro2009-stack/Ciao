@@ -96,3 +96,73 @@ const SURNAMES = ['Rossi', 'Bianchi', 'Esposito', 'Romano', 'Colombo', 'Ricci', 
   'Piras', 'Sartori', 'Neri', 'Milani', 'Pagano', 'Orlando', 'Sorrentino', 'Cocco', 'Melis', 'Russo'];
 const SKINS = ['#f1c9a5', '#e0ac7e', '#c68a5a', '#8d5a3b', '#5c3a24', '#f5d6bc', '#d49a6a'];
 const HAIRS = ['#1d1510', '#3b2414', '#6b4423', '#a8752f', '#d9b26a', '#0d0d0d', '#5a5a5a', '#2b1d14'];
+
+// ---------- attributi dei giocatori (20-99) ----------
+// vel velocità, tir tiro, pas passaggio, dif contrasto, res resistenza, por portiere
+const ATTRS = [['vel', 'Velocità', 'Vel'], ['tir', 'Tiro', 'Tir'], ['pas', 'Passaggio', 'Pas'], ['dif', 'Contrasto', 'Con'], ['res', 'Resistenza', 'Res'], ['por', 'Portiere', 'Por']];
+const ROLE_NAMES = { gk: 'Portiere', def: 'Difensore', mid: 'Centrocampista', att: 'Attaccante' };
+const ROLE_SHORT = { gk: 'POR', def: 'DIF', mid: 'CEN', att: 'ATT' };
+function attrsFromSkill(sk, role, r = Math.random) {
+  const base = 40 + 40 * sk, j = () => Math.round((r() - 0.5) * 8);
+  const a = { vel: base + j(), tir: base + j(), pas: base + j(), dif: base + j(), res: base + j(), por: 30 + j() };
+  if (role === 'att') { a.tir += 8; a.vel += 4; a.dif -= 10; }
+  else if (role === 'mid') { a.pas += 6; a.res += 4; }
+  else if (role === 'def') { a.dif += 8; a.tir -= 8; a.vel -= 2; }
+  else { a.por = base + 4 + j(); a.vel -= 6; a.tir -= 15; a.dif -= 10; }
+  for (const k in a) a[k] = clamp(Math.round(a[k]), 20, 99);
+  return a;
+}
+// valutazione complessiva pesata sul ruolo
+function overall(a, role) {
+  const w = role === 'gk' ? { por: 0.7, pas: 0.1, vel: 0.1, res: 0.1 }
+    : role === 'def' ? { dif: 0.4, vel: 0.2, pas: 0.15, res: 0.15, tir: 0.1 }
+    : role === 'mid' ? { pas: 0.35, res: 0.2, vel: 0.15, tir: 0.15, dif: 0.15 }
+    : { tir: 0.4, vel: 0.3, pas: 0.15, res: 0.1, dif: 0.05 };
+  let s = 0;
+  for (const k in w) s += (a[k] || 0) * w[k];
+  return Math.round(s);
+}
+
+// ---------- personalizzazione del club ----------
+const PALETTE = [
+  ['#f2f3ee', 'Bianco'], ['#16181b', 'Nero'], ['#2f7fe0', 'Azzurro'], ['#7cc4ef', 'Celeste'],
+  ['#0f2c4a', 'Blu notte'], ['#d7362c', 'Rosso'], ['#7c1f2b', 'Granata'], ['#f6c543', 'Giallo'],
+  ['#e8a33d', 'Arancio'], ['#1f9a55', 'Verde'], ['#0f3d24', 'Verde scuro'], ['#6a3fb5', 'Viola'],
+  ['#e86a9a', 'Rosa'], ['#8a8f96', 'Grigio'], ['#5c3a24', 'Marrone'], ['#3ccfc0', 'Turchese']
+];
+const PATTERNS = [['plain', 'Tinta unita'], ['stripes', 'Strisce'], ['hoops', 'Cerchi'], ['sash', 'Fascia'], ['halves', 'Metà']];
+const CREST_SHAPES = [['shield', 'Scudo'], ['round', 'Tondo'], ['diamond', 'Rombo'], ['badge', 'Stemma']];
+const CREST_FILLS = [['plain', 'Pieno'], ['split', 'Diviso'], ['stripes', 'Strisce'], ['band', 'Banda']];
+const CREST_SYMBOLS = [['star', 'Stella'], ['ball', 'Pallone'], ['bolt', 'Fulmine'], ['crown', 'Corona'], ['moon', 'Luna'], ['none', 'Nessuno']];
+
+let crestSeq = 0;
+// stemma disegnato in SVG a partire dalle scelte del club
+function crestSVG(cr, short) {
+  const id = 'cr' + (++crestSeq);
+  const shapes = {
+    shield: 'M8 6H92V62Q92 94 50 112Q8 94 8 62Z',
+    round: 'M50 8A50 50 0 1 1 49.9 8Z',
+    diamond: 'M50 2L98 58L50 114L2 58Z',
+    badge: 'M22 4H78L96 22V78L50 114L4 78V22Z'
+  };
+  const d = shapes[cr.shape] || shapes.shield;
+  let fill = `<rect width="100" height="116" fill="${cr.c1}"/>`;
+  if (cr.fill === 'split') fill += `<rect x="50" width="50" height="116" fill="${cr.c2}"/>`;
+  else if (cr.fill === 'stripes') for (let x = 14; x < 100; x += 28) fill += `<rect x="${x}" width="14" height="116" fill="${cr.c2}"/>`;
+  else if (cr.fill === 'band') fill += `<path d="M-10 70L70 -10H100V8L18 116H-10Z" fill="${cr.c2}"/>`;
+  const sc = cr.sc || '#f6c543';
+  const sym = {
+    star: `<path d="M50 24L56.5 39.5L73 41L60.5 52L64.5 68L50 59.5L35.5 68L39.5 52L27 41L43.5 39.5Z" fill="${sc}"/>`,
+    ball: `<circle cx="50" cy="46" r="20" fill="#f7f7f2" stroke="#16181b" stroke-width="2"/><path d="M50 36L59 42.5L55.5 53H44.5L41 42.5Z" fill="#16181b"/>`,
+    bolt: `<path d="M56 22L36 50H49L43 72L65 42H52Z" fill="${sc}"/>`,
+    crown: `<path d="M30 60V34L40 46L50 28L60 46L70 34V60Z" fill="${sc}"/><rect x="30" y="61" width="40" height="6" fill="${sc}"/>`,
+    moon: `<path d="M58 24A23 23 0 1 0 58 68A18 18 0 1 1 58 24Z" fill="${sc}"/>`,
+    none: ''
+  }[cr.symbol] || '';
+  const text = String(short || '').slice(0, 3).replace(/[<>&"]/g, '');
+  return `<svg viewBox="0 0 100 116" role="img" aria-label="Stemma ${text}"><defs><clipPath id="${id}"><path d="${d}"/></clipPath></defs>` +
+    `<g clip-path="url(#${id})">${fill}</g>${sym}` +
+    `<rect x="26" y="78" width="48" height="20" rx="3" fill="rgba(8,14,12,0.7)"/>` +
+    `<text x="50" y="93.5" text-anchor="middle" font-family="Teko, 'Arial Narrow', sans-serif" font-weight="600" font-size="19" letter-spacing="1" fill="#ffffff">${text}</text>` +
+    `<path d="${d}" fill="none" stroke="rgba(0,0,0,0.45)" stroke-width="3"/></svg>`;
+}

@@ -182,7 +182,7 @@ const Net = (() => {
       id, role, len: LENGTHS.some(l => l.v === len) ? len : 240, room: null, started: false, done: false,
       opp: { peer: opp.peer, by: opp.by, team: TEAMS.some(t => t.id === cn.team) ? cn.team : 'lupi', r: Number(cn.r) || START },
       joinedAt: now(), lastSeen: now(), lastSnapAt: now(), seq: 0, lastQ: 0, tickN: -1,
-      cnt: null, pc: 0, lc: 0, sc: 0, lastIn: '', lastPhase: null, ranked: false, base: null, end: null
+      cnt: null, pc: 0, lc: 0, sc: 0, cc: 0, kc: 0, fc: 0, lastIn: '', lastPhase: null, ranked: false, base: null, end: null
     };
     S.incoming = null;
     lobbyPresence();
@@ -210,7 +210,7 @@ const Net = (() => {
   function oppLabel(m) { return `${nameOf(m.opp.by)} (${teamById(m.opp.team).short})`; }
   function hostStart(m) {
     m.started = true;
-    m.remote = { x: 0, y: 0, shoot: false, sprint: false, passE: false, lobE: false, shootE: false, anyE: false };
+    m.remote = { x: 0, y: 0, shoot: false, sprint: false, curl: false, passE: false, lobE: false, shootE: false, curlE: false, knockE: false, feintE: false, anyE: false };
     newMatch({ home: S.team, away: m.opp.team, mode: 'online', len: m.len, user: 0, inputs: [IN, m.remote] });
     afterStart(m);
   }
@@ -253,12 +253,16 @@ const Net = (() => {
     const r = m.remote;
     r.x = clamp((Number(i[0]) || 0) / 100, -1, 1); r.y = clamp((Number(i[1]) || 0) / 100, -1, 1);
     const f = Number(i[2]) || 0;
-    r.shoot = !!(f & 1); r.sprint = !!(f & 2);
-    const c = [i[3], i[4], i[5]].map(v => Number(v) || 0);
+    r.shoot = !!(f & 1); r.sprint = !!(f & 2); r.curl = !!(f & 4);
+    // contatori: passaggio, lancio, tiro, tiro a giro, allungo, finta
+    const c = [i[3], i[4], i[5], i[6], i[7], i[8]].map(v => Number(v) || 0);
     if (m.cnt) {
       if (c[0] !== m.cnt[0]) r.passE = true;
       if (c[1] !== m.cnt[1]) r.lobE = true;
       if (c[2] !== m.cnt[2]) r.shootE = true;
+      if (c[3] !== m.cnt[3]) r.curlE = true;
+      if (c[4] !== m.cnt[4]) r.knockE = true;
+      if (c[5] !== m.cnt[5]) r.feintE = true;
     }
     m.cnt = c;
   }
@@ -394,8 +398,11 @@ const Net = (() => {
     if (IN.passE) m.pc = (m.pc + 1) % 1000;
     if (IN.lobE) m.lc = (m.lc + 1) % 1000;
     if (IN.shootE) m.sc = (m.sc + 1) % 1000;
-    IN.passE = IN.lobE = IN.shootE = IN.anyE = false;
-    const i = [Math.round(IN.x * 100), Math.round(IN.y * 100), (IN.shoot ? 1 : 0) | (IN.sprint ? 2 : 0), m.pc, m.lc, m.sc];
+    if (IN.curlE) m.cc = (m.cc + 1) % 1000;
+    if (IN.knockE) m.kc = (m.kc + 1) % 1000;
+    if (IN.feintE) m.fc = (m.fc + 1) % 1000;
+    IN.passE = IN.lobE = IN.shootE = IN.curlE = IN.knockE = IN.feintE = IN.anyE = false;
+    const i = [Math.round(IN.x * 100), Math.round(IN.y * 100), (IN.shoot ? 1 : 0) | (IN.sprint ? 2 : 0) | (IN.curl ? 4 : 0), m.pc, m.lc, m.sc, m.cc, m.kc, m.fc];
     const key = i.join();
     if (key !== m.lastIn) { m.lastIn = key; m.room.presence({ i }).catch(() => {}); }
   }

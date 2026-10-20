@@ -112,5 +112,11 @@ const Sound = {
     f.frequency.linearRampToValueAtTime(300, this.ctx.currentTime + 1.2);
   },
   net() { if (this.ok()) this.burst(0.35, 3200, 0.6, 0.18, 'highpass', 0.01); },
+  swish() {
+    if (!this.ok()) return;
+    const f = this.burst(0.22, 1400, 1.2, 0.16, 'bandpass', 0.03);
+    f.frequency.setValueAtTime(900, this.ctx.currentTime);
+    f.frequency.exponentialRampToValueAtTime(3200, this.ctx.currentTime + 0.2);
+  },
   click() { if (this.ctx && !this.muted) this.tone(660, 520, 0.05, 'sine', 0.08); }
 };

@@ -294,8 +294,10 @@ function drawPlayer(c, p) {
     body(-3, 7, 10); head(-1.5);
   } else {
     c.rotate(Math.atan2(p.fy, p.fx));
+    // chi abbocca alla finta allunga la gamba e si sbilancia
+    if (p.state === 'bite') c.translate(4, 0);
     for (const s of [-1, 1]) {
-      const kick = p.kickAnim > 0 && s === 1 ? 11 * (p.kickAnim / 0.22) : 0;
+      const kick = p.kickAnim > 0 && s === 1 ? 11 * (p.kickAnim / 0.22) : p.state === 'bite' && s === 1 ? 13 : 0;
       const fx = s * sw * 9 + kick;
       if (Math.abs(fx) > 0.5) limb(c, 0, s * 4.2, fx, s * 4.2, 4.4, socks);
       dot(c, fx + 1.6, s * 4.2, 2.4, '#121416');
@@ -347,14 +349,14 @@ function drawBall(c) {
 }
 function drawTrail(c) {
   const b = G.ball, s = Math.hypot(b.vx, b.vy);
-  if (s > 620 && !b.owner) RD.trail.push([b.x, b.y - b.z * ZK]);
+  if ((s > 620 || (b.curve && s > 300)) && !b.owner) RD.trail.push([b.x, b.y - b.z * ZK]);
   else if (RD.trail.length) RD.trail.shift();
   if (RD.trail.length > 9) RD.trail.shift();
   if (RD.trail.length < 2) return;
   c.lineCap = 'round';
   for (let i = 1; i < RD.trail.length; i++) {
     const [x1, y1] = RD.trail[i - 1], [x2, y2] = RD.trail[i];
-    c.strokeStyle = `rgba(255,255,240,${0.06 + i * 0.035})`; c.lineWidth = 2 + i * 0.7;
+    c.strokeStyle = b.curve ? `rgba(244,198,79,${0.08 + i * 0.045})` : `rgba(255,255,240,${0.06 + i * 0.035})`; c.lineWidth = 2 + i * 0.7;
     c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke();
   }
 }

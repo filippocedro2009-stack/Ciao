@@ -67,6 +67,7 @@ button {
 }
 button:hover { border-color: var(--muted); }
 button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
 .tool[aria-pressed="false"] { color: var(--muted); text-decoration: line-through; }
 
 .stage {
@@ -225,13 +226,75 @@ kbd {
 .rank tr.me td { background: rgba(244, 198, 79, 0.1); }
 .rank tr.me .nm { color: var(--gold); font-weight: 600; }
 .tiers { display: flex; flex-wrap: wrap; gap: 6px 14px; justify-content: center; color: var(--muted); font-size: 13px; }
+.svgcrest { clip-path: none; background: none !important; }
+.svgcrest svg { width: 100%; height: 100%; display: block; }
+button.small { padding: 7px 10px; font-size: 13px; }
+.primary.small { font-size: 18px; padding: 7px 14px 4px; }
+.note { margin: 0; color: var(--muted); font-size: 13px; }
+.lghead { display: flex; align-items: center; gap: 16px; text-align: left; width: min(100%, 760px); }
+.lgcrest { width: 74px; flex: none; }
+.lgcrest svg { width: 100%; display: block; }
+.lgtitle { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.lgtitle h2 { overflow-wrap: anywhere; }
+.lgnext { width: min(100%, 760px); display: flex; flex-direction: column; gap: 10px; }
+.lglast { margin: 0; font-size: 14px; color: var(--chalk); text-align: left; }
+.lglast .grown { color: #7fd38a; }
+.lgcard { border: 1px solid var(--line); border-radius: 6px; background: rgba(19, 34, 29, 0.85); padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; align-items: center; }
+.lgcard h3 { margin: 0; font-family: var(--display); font-weight: 600; font-size: 28px; line-height: 1; text-transform: uppercase; }
+.lgvs { display: flex; align-items: center; justify-content: center; gap: 14px 22px; flex-wrap: wrap; }
+.lgvs .side { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
+.lgvs .nm { font-family: var(--display); font-size: 22px; line-height: 1; text-transform: uppercase; text-align: center; }
+.lgvs .vs { color: var(--muted); font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; }
+.lggrid { width: min(100%, 760px); display: grid; grid-template-columns: minmax(0, 1fr) 190px; gap: 14px; align-items: start; text-align: left; }
+.lgtable { min-width: 360px; }
+.lgres { display: flex; flex-direction: column; gap: 4px; }
+.lgres h3 { margin: 0 0 4px; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.lgline { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; font-size: 14px; padding: 3px 6px; border-radius: 3px; font-variant-numeric: tabular-nums; }
+.lgline .nm:last-child { text-align: right; }
+.lgline.me { background: rgba(244, 198, 79, 0.1); color: var(--gold); }
+.lgreset { opacity: 0.85; }
+.squad { min-width: 560px; }
+.squad td.attr { white-space: nowrap; }
+.squad .v { display: inline-block; min-width: 1.6em; font-variant-numeric: tabular-nums; }
+.squad .muted { color: var(--muted); }
+.plus { padding: 2px 7px; margin-left: 4px; font-size: 13px; line-height: 1.2; border-radius: 3px; }
+.plus:disabled { opacity: 0.35; cursor: not-allowed; }
+.mklist { width: min(100%, 760px); display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; text-align: left; }
+.mkcard { border: 1px solid var(--line); border-radius: 6px; background: rgba(19, 34, 29, 0.85); padding: 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.mktop { display: flex; align-items: center; gap: 8px; }
+.mktop .nm { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mktop .ovr { font-family: var(--display); font-size: 26px; line-height: 1; color: var(--gold); }
+.mkattrs { display: flex; flex-wrap: wrap; gap: 4px 10px; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.mkbuy { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.mkbuy .price { font-weight: 600; }
+.mkswap { display: flex; flex-direction: column; gap: 6px; align-items: stretch; width: 100%; }
+.mkswap button { text-align: left; }
+.clpreview {
+  display: flex; align-items: center; gap: 18px; justify-content: center; flex-wrap: wrap;
+  position: sticky; top: -16px; z-index: 2; width: min(100%, 760px);
+  padding: 10px; border-radius: 0 0 6px 6px; background: rgba(9, 17, 14, 0.94); border-bottom: 1px solid var(--line);
+}
+.clcrest { width: 90px; }
+.clcrest svg { width: 100%; display: block; }
+#clCanvas { width: 240px; height: 120px; max-width: 100%; border-radius: 6px; border: 1px solid var(--line); }
+.clform { width: min(100%, 760px); display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; text-align: left; }
+.clsec { margin: 0; border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.clsec legend { padding: 0 6px; font-family: var(--display); font-size: 20px; text-transform: uppercase; }
+.clfield { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.clfield input { font: 600 15px var(--body); color: var(--chalk); background: var(--stand); border: 1px solid var(--line); border-radius: 4px; padding: 8px 10px; width: min(100%, 260px); }
+.clfield input:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+.swatches { display: flex; flex-wrap: wrap; gap: 5px; }
+.sw { width: 26px; height: 26px; padding: 0; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.18); }
+.sw[aria-pressed="true"] { border-color: var(--gold); box-shadow: 0 0 0 2px var(--night), 0 0 0 4px var(--gold); }
+.clfield .seg button { padding: 7px 10px; font-size: 13px; }
 .pad { display: none; width: 100%; justify-content: space-between; align-items: flex-end; gap: 12px; user-select: none; -webkit-user-select: none; touch-action: none; }
 .touch .pad { display: flex; }
 .touch .foot { display: none; }
 .touch.in-menu .pad { visibility: hidden; }
 .joy { width: 136px; height: 136px; border-radius: 50%; border: 2px solid var(--line); background: rgba(19, 34, 29, 0.75); position: relative; touch-action: none; flex: none; }
 .knob { position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%; background: var(--chalk); opacity: 0.85; pointer-events: none; }
-.pbtns { display: grid; grid-template-columns: repeat(2, auto); gap: 10px 12px; align-items: end; }
+.pbtns { display: grid; grid-template-columns: repeat(3, auto); gap: 10px 12px; align-items: end; justify-items: center; }
+.pb.wide { grid-column: span 2; justify-self: end; }
 .pb {
   width: 72px; height: 72px; border-radius: 50%; padding: 0;
   font-family: var(--display); font-size: 20px; letter-spacing: 0.04em; text-transform: uppercase;
@@ -255,7 +318,17 @@ kbd {
   .touch .pad > * { pointer-events: auto; opacity: 0.8; }
   .touch .joy { width: 120px; height: 120px; }
 }
+@media (max-width: 680px) {
+  .lggrid { grid-template-columns: minmax(0, 1fr); }
+  .lghead { gap: 10px; }
+  .lgcrest { width: 56px; }
+}
 @media (max-width: 560px) {
+  .clpreview { flex-wrap: nowrap; gap: 10px; padding: 6px; }
+  .clcrest { width: 54px; flex: none; }
+  #clCanvas { width: 180px; height: 90px; }
+  .pb { width: 64px; height: 64px; font-size: 18px; }
+  .pb.sm { width: 50px; height: 50px; font-size: 14px; }
   .onrow { grid-template-columns: minmax(0, 1fr) auto; }
   .onmeta { grid-column: 1; grid-row: 2; }
   .onact { grid-column: 2; grid-row: 1 / span 2; }
@@ -337,6 +410,7 @@ kbd {
         <h1 class="logo">Calcio<br><span>Notturno</span></h1>
         <nav class="mlist" aria-label="Modalità di gioco">
           <button type="button" class="mbtn" id="mOnline"><b>Online</b><small>Sfida un amico in tempo reale, partite classificate</small></button>
+          <button type="button" class="mbtn" id="mLeague"><b>Campionato</b><small>Il tuo club: maglia, stemma, allenamenti e mercato</small></button>
           <button type="button" class="mbtn" id="mFriendly"><b>Amichevole</b><small>Scegli due squadre e gioca contro il computer</small></button>
           <button type="button" class="mbtn" id="mCup"><b>Coppa Notturna</b><small id="cupNote">Otto squadre, eliminazione diretta</small></button>
           <button type="button" class="mbtn" id="mPens"><b>Sfida ai rigori</b><small>Cinque tiri a testa, poi a oltranza</small></button>
@@ -450,6 +524,74 @@ kbd {
       </div>
     </section>
 
+    <section class="scr" id="scrLeague" hidden>
+      <div class="panel wide">
+        <div class="lghead">
+          <div class="lgcrest" id="lgCrest"></div>
+          <div class="lgtitle">
+            <p class="kicker" id="lgKicker">Campionato</p>
+            <h2 id="lgName">Club</h2>
+            <p class="sub" id="lgSub"></p>
+          </div>
+        </div>
+        <div class="lgnext" id="lgNext"></div>
+        <div class="lggrid">
+          <div class="tablewrap"><table class="rank lgtable" id="lgTable"></table></div>
+          <div class="lgres" id="lgRes"></div>
+        </div>
+        <div class="row">
+          <button type="button" class="ghost" id="lgSquad">Rosa e allenamento</button>
+          <button type="button" class="ghost" id="lgMarket">Mercato</button>
+          <button type="button" class="ghost" id="lgClub">Club e divisa</button>
+          <button type="button" class="ghost" id="lgMenu">Menu</button>
+        </div>
+        <div class="row lgreset">
+          <button type="button" class="ghost small" id="lgReset">Ricomincia da capo</button>
+          <div class="row" id="lgResetAsk" hidden>
+            <span class="note">Cancellare club, rosa e classifiche?</span>
+            <button type="button" class="ghost small" id="lgResetYes">Sì, ricomincia</button>
+            <button type="button" class="ghost small" id="lgResetNo">No</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="scr" id="scrSquad" hidden>
+      <div class="panel wide">
+        <p class="kicker">Campionato</p>
+        <h2>Rosa e allenamento</h2>
+        <p class="sub" id="sqSub"></p>
+        <div class="tablewrap"><table class="rank squad" id="sqTable"></table></div>
+        <div class="row"><button type="button" class="primary" id="sqBack">Fatto</button></div>
+      </div>
+    </section>
+
+    <section class="scr" id="scrMarket" hidden>
+      <div class="panel wide">
+        <p class="kicker">Campionato</p>
+        <h2>Mercato</h2>
+        <p class="sub" id="mkSub"></p>
+        <div class="mklist" id="mkList"></div>
+        <div class="row"><button type="button" class="primary" id="mkBack">Fatto</button></div>
+      </div>
+    </section>
+
+    <section class="scr" id="scrClub" hidden>
+      <div class="panel wide">
+        <p class="kicker" id="clKicker">Campionato</p>
+        <h2 id="clTitle">Club e divisa</h2>
+        <div class="clpreview">
+          <div class="clcrest" id="clCrest"></div>
+          <canvas id="clCanvas" width="240" height="120" aria-label="Anteprima delle maglie"></canvas>
+        </div>
+        <div class="clform" id="clForm"></div>
+        <div class="row">
+          <button type="button" class="ghost" id="clCancel">Annulla</button>
+          <button type="button" class="primary" id="clSave">Salva</button>
+        </div>
+      </div>
+    </section>
+
     <section class="scr" id="scrHelp" hidden>
       <div class="panel wide">
         <h2>Comandi</h2>
@@ -459,17 +601,20 @@ kbd {
             <tbody>
               <tr><td>Muovi il giocatore</td><td><kbd>WASD</kbd> o frecce</td><td>Levetta sinistra</td><td>Joystick</td></tr>
               <tr><td>Passaggio rasoterra</td><td><kbd>X</kbd> o <kbd>K</kbd></td><td>A</td><td>Passa</td></tr>
-              <tr><td>Lancio o cross</td><td><kbd>C</kbd> o <kbd>L</kbd></td><td>X o Y</td><td>Lancio</td></tr>
+              <tr><td>Lancio o cross</td><td><kbd>C</kbd> o <kbd>L</kbd></td><td>X</td><td>Lancio</td></tr>
               <tr><td>Tiro: tieni premuto per caricare</td><td><kbd>Spazio</kbd> o <kbd>J</kbd></td><td>B</td><td>Tiro</td></tr>
+              <tr><td>Tiro a giro: tieni premuto e rilascia</td><td><kbd>Q</kbd> o <kbd>U</kbd></td><td>Y</td><td>Giro</td></tr>
+              <tr><td>Finta di tiro</td><td><kbd>F</kbd>, oppure passaggio mentre carichi il tiro</td><td>LT, oppure A mentre tieni B</td><td>Passa mentre tieni Tiro</td></tr>
+              <tr><td>Allungo della palla</td><td><kbd>V</kbd> o <kbd>O</kbd></td><td>LB</td><td>Doppio tocco su Scatto</td></tr>
               <tr><td>Scatto</td><td><kbd>Shift</kbd></td><td>RB o RT</td><td>Scatto</td></tr>
               <tr><td>Senza palla: scivolata</td><td><kbd>Spazio</kbd></td><td>B</td><td>Tiro</td></tr>
               <tr><td>Senza palla: cambia giocatore</td><td><kbd>X</kbd></td><td>A</td><td>Passa</td></tr>
-              <tr><td>Senza palla: pressing di un compagno</td><td><kbd>C</kbd></td><td>X o Y</td><td>Lancio</td></tr>
+              <tr><td>Senza palla: pressing di un compagno</td><td><kbd>C</kbd></td><td>X</td><td>Lancio</td></tr>
               <tr><td>Pausa</td><td><kbd>P</kbd> o <kbd>Esc</kbd></td><td>Start</td><td>Pausa</td></tr>
             </tbody>
           </table>
         </div>
-        <p class="sub">Il passaggio va al compagno nella direzione in cui punti: il cerchio tratteggiato mostra chi lo riceve. Un tiro caricato al massimo da lontano rischia di finire sopra la traversa. Le scivolate da dietro sono quasi sempre fallo, e in area è rigore.</p>
+        <p class="sub">Il tiro a giro parte largo e rientra verso il palo lontano: è più lento ma il portiere lo legge male. La finta funziona meglio con un difensore davanti; l'allungo serve quando hai campo libero. Il passaggio va al compagno nella direzione in cui punti: il cerchio tratteggiato mostra chi lo riceve. Un tiro caricato al massimo da lontano rischia di finire sopra la traversa. Le scivolate da dietro sono quasi sempre fallo, e in area è rigore.</p>
         <div class="row"><button type="button" class="primary" id="hBack">Ho capito</button></div>
       </div>
     </section>
@@ -478,14 +623,15 @@ kbd {
   <div class="pad" id="pad">
     <div class="joy" id="joy" aria-label="Joystick"><div class="knob" id="knob"></div></div>
     <div class="pbtns">
+      <button type="button" id="tCurl" class="pb sm">Giro</button>
       <button type="button" id="tLob" class="pb sm">Lancio</button>
       <button type="button" id="tSprint" class="pb sm">Scatto</button>
-      <button type="button" id="tPass" class="pb">Passa</button>
+      <button type="button" id="tPass" class="pb wide">Passa</button>
       <button type="button" id="tShoot" class="pb shoot">Tiro</button>
     </div>
   </div>
 
-  <p class="foot"><kbd>WASD</kbd> muovi · <kbd>Spazio</kbd> tiro o scivolata · <kbd>X</kbd> passaggio o cambio · <kbd>C</kbd> lancio · <kbd>Shift</kbd> scatto · <kbd>P</kbd> pausa · funziona anche col gamepad</p>
+  <p class="foot"><kbd>WASD</kbd> muovi · <kbd>Spazio</kbd> tiro o scivolata · <kbd>Q</kbd> tiro a giro · <kbd>F</kbd> finta · <kbd>V</kbd> allungo · <kbd>X</kbd> passaggio o cambio · <kbd>C</kbd> lancio · <kbd>Shift</kbd> scatto · <kbd>P</kbd> pausa</p>
 </div>
 
 <script src="src/data.js"></script>
@@ -493,6 +639,7 @@ kbd {
 <script src="src/sim.js"></script>
 <script src="src/render.js"></script>
 <script src="src/net.js"></script>
+<script src="src/league.js"></script>
 <script src="src/ui.js"></script>
 </body>
 </html>

@@ -19,7 +19,7 @@
   const picks = { a: save.team, b: save.opp };
 
   // ---------- schermate ----------
-  const SCREENS = ['scrMenu', 'scrSetup', 'scrCup', 'scrPause', 'scrBreak', 'scrHelp', 'scrOnline', 'scrRank'];
+  const SCREENS = ['scrMenu', 'scrSetup', 'scrCup', 'scrPause', 'scrBreak', 'scrHelp', 'scrOnline', 'scrRank', 'scrLeague', 'scrSquad', 'scrMarket', 'scrClub'];
   function show(id) {
     for (const s of SCREENS) $(s).hidden = s !== id;
     screen = id;
@@ -51,7 +51,9 @@
   function crestEl(def, cls) {
     const d = document.createElement('div');
     d.className = 'crest ' + (cls || '');
-    styleCrest(d, def);
+    // i club del campionato hanno uno stemma disegnato su misura
+    if (def.crest) { d.classList.add('svgcrest'); d.innerHTML = crestSVG(def.crest, def.short); }
+    else styleCrest(d, def);
     return d;
   }
 
@@ -65,6 +67,7 @@
   }
   function startMatch(o) {
     lastMatch = o; resultRecorded = false; pendingBreak = null;
+    if (o.mode === 'league') lastMatch = null;
     Sound.unlock(); Sound.quiet = false;
     newMatch(o);
     RD.snap = true;
@@ -323,6 +326,14 @@
     } else if (G.mode === 'cup') {
       recordCup();
       row.append(button('Tabellone della coppa', 'primary', showCup));
+    } else if (G.mode === 'league') {
+      if (!resultRecorded) { resultRecorded = true; League.recordMatch(G.teams[0].score, G.teams[1].score, false); }
+      const last = League.note();
+      if (last) {
+        note.hidden = false;
+        note.textContent = `+${last.credits.toLocaleString('it-IT')} crediti` + (last.grown.length ? `. Crescono: ${last.grown.join(', ')}` : '');
+      }
+      row.append(button('Torna al campionato', 'primary', () => { startAttract(); League.open(); }));
     } else {
       row.append(button('Rivincita', 'primary', () => startMatch(lastMatch)));
       if (G.mode === 'friendly') row.append(button('Cambia squadre', 'ghost', () => openSetup('friendly')));
@@ -510,6 +521,7 @@
   }
   function closeRank() { Net.unwatchBoard(); if (rankFrom === 'scrOnline') openOnline(); else if (rankFrom === 'scrBreak') show('scrBreak'); else show('scrMenu'); }
   $('mOnline').addEventListener('click', openOnline);
+  $('mLeague').addEventListener('click', () => { Sound.unlock(); League.open(); });
   $('mRank').addEventListener('click', () => openRank('scrMenu'));
   $('onRank').addEventListener('click', () => openRank('scrOnline'));
   $('onBack').addEventListener('click', toMenu);
@@ -521,7 +533,9 @@
     if (screen === 'scrPause') { G.paused = false; show(null); return; }
     if (screen === 'scrHelp') { show(helpFrom); return; }
     if (screen === 'scrRank') { closeRank(); return; }
-    if (screen === 'scrSetup' || screen === 'scrCup' || screen === 'scrOnline') { toMenu(); return; }
+    if (screen === 'scrSquad' || screen === 'scrMarket') { League.open(); return; }
+    if (screen === 'scrClub') { $('clCancel').click(); return; }
+    if (screen === 'scrSetup' || screen === 'scrCup' || screen === 'scrOnline' || screen === 'scrLeague') { toMenu(); return; }
     if (screen) return;
     if (G.mode === 'attract' || G.phase === 'break') return;
     const online = Net.inMatch();
@@ -530,11 +544,21 @@
     keys.clear(); IN.shoot = false;
     $('pauseTitle').textContent = online ? 'Partita online' : 'Pausa';
     $('pauseNote').hidden = !online;
-    $('pQuit').textContent = online ? 'Abbandona (conta come sconfitta)' : 'Abbandona la partita';
+    $('pQuit').textContent = online ? 'Abbandona (conta come sconfitta)' : G.mode === 'league' ? 'Abbandona (sconfitta 0-3)' : 'Abbandona la partita';
     show('scrPause');
   }
   $('pResume').addEventListener('click', togglePause);
-  $('pQuit').addEventListener('click', () => { if (Net.inMatch()) { Net.quit(); openOnline(); } else toMenu(); });
+  $('pQuit').addEventListener('click', () => {
+    if (Net.inMatch()) { Net.quit(); openOnline(); return; }
+    if (G.mode === 'league' && !resultRecorded) {
+      // chi abbandona in campionato perde a tavolino
+      resultRecorded = true;
+      League.recordMatch(0, 3, true);
+      G.paused = false; startAttract(); League.open();
+      return;
+    }
+    toMenu();
+  });
   $('pHelp').addEventListener('click', () => { helpFrom = 'scrPause'; show('scrHelp'); });
   $('mHelp').addEventListener('click', () => { helpFrom = 'scrMenu'; show('scrHelp'); });
   $('hBack').addEventListener('click', () => show(helpFrom));
@@ -566,7 +590,8 @@
   const keys = new Set();
   const K = { up: ['ArrowUp', 'KeyW'], down: ['ArrowDown', 'KeyS'], left: ['ArrowLeft', 'KeyA'], right: ['ArrowRight', 'KeyD'] };
   const SHOOT = ['Space', 'KeyJ'], PASS = ['KeyX', 'KeyK'], LOB = ['KeyC', 'KeyL'], SPRINT = ['ShiftLeft', 'ShiftRight', 'KeyI'];
-  const GAME_KEYS = new Set([...K.up, ...K.down, ...K.left, ...K.right, ...SHOOT, ...PASS, ...LOB, ...SPRINT]);
+  const CURL = ['KeyQ', 'KeyU'], FEINT = ['KeyF', 'KeyH'], KNOCK = ['KeyV', 'KeyO'];
+  const GAME_KEYS = new Set([...K.up, ...K.down, ...K.left, ...K.right, ...SHOOT, ...PASS, ...LOB, ...SPRINT, ...CURL, ...FEINT, ...KNOCK]);
   window.addEventListener('keydown', e => {
     if (e.code === 'Escape' || e.code === 'KeyP') { if (!e.repeat) togglePause(); e.preventDefault(); return; }
     if (screen || G.mode === 'attract') return;
@@ -577,6 +602,9 @@
     if (SHOOT.includes(e.code)) IN.shootE = true;
     if (PASS.includes(e.code)) IN.passE = true;
     if (LOB.includes(e.code)) IN.lobE = true;
+    if (CURL.includes(e.code)) IN.curlE = true;
+    if (FEINT.includes(e.code)) IN.feintE = true;
+    if (KNOCK.includes(e.code)) IN.knockE = true;
     IN.anyE = true;
   });
   window.addEventListener('keyup', e => keys.delete(e.code));
@@ -584,7 +612,7 @@
 
   // ---------- touch ----------
   const joy = { x: 0, y: 0, id: null };
-  let tShoot = false, tSprint = false;
+  let tShoot = false, tSprint = false, tCurl = false, lastSprintTap = 0;
   const joyEl = $('joy'), knob = $('knob');
   function joyMove(e) {
     const r = joyEl.getBoundingClientRect();
@@ -613,7 +641,14 @@
   padButton('tShoot', () => { tShoot = true; IN.shootE = true; }, () => { tShoot = false; });
   padButton('tPass', () => { IN.passE = true; });
   padButton('tLob', () => { IN.lobE = true; });
-  padButton('tSprint', () => { tSprint = true; }, () => { tSprint = false; });
+  padButton('tSprint', () => {
+    tSprint = true;
+    // doppio tocco su Scatto = allungo
+    const now = performance.now();
+    if (now - lastSprintTap < 320) IN.knockE = true;
+    lastSprintTap = now;
+  }, () => { tSprint = false; });
+  padButton('tCurl', () => { tCurl = true; IN.curlE = true; }, () => { tCurl = false; });
   joyEl.addEventListener('contextmenu', e => e.preventDefault());
   $('cv').addEventListener('pointerdown', () => { if (!screen) IN.anyE = true; });
 
@@ -623,12 +658,12 @@
   if (coarse.addEventListener) coarse.addEventListener('change', syncTouch);
 
   // ---------- gamepad ----------
-  const pad = { x: 0, y: 0, shoot: false, sprint: false, prev: [] };
+  const pad = { x: 0, y: 0, shoot: false, curl: false, sprint: false, prev: [] };
   function pollPad() {
     let list = [];
     try { list = navigator.getGamepads ? Array.from(navigator.getGamepads()) : []; } catch (e) { list = []; }
     const gp = list.find(g => g && g.connected);
-    if (!gp) { pad.x = pad.y = 0; pad.shoot = pad.sprint = false; return; }
+    if (!gp) { pad.x = pad.y = 0; pad.shoot = pad.curl = pad.sprint = false; return; }
     const btn = i => !!(gp.buttons[i] && gp.buttons[i].pressed);
     const edge = i => btn(i) && !pad.prev[i];
     const ax = gp.axes[0] || 0, ay = gp.axes[1] || 0;
@@ -639,12 +674,16 @@
     } else if (G.mode !== 'attract') {
       if (edge(0)) IN.passE = true;
       if (edge(1)) IN.shootE = true;
-      if (edge(2) || edge(3)) IN.lobE = true;
-      if ([0, 1, 2, 3].some(edge)) IN.anyE = true;
+      if (edge(2)) IN.lobE = true;
+      if (edge(3)) IN.curlE = true;
+      if (edge(4)) IN.knockE = true;
+      if (edge(6)) IN.feintE = true;
+      if ([0, 1, 2, 3, 4, 6].some(edge)) IN.anyE = true;
     }
     if (edge(9)) togglePause();
     pad.shoot = btn(1);
-    pad.sprint = btn(4) || btn(5) || btn(6) || btn(7);
+    pad.curl = btn(3);
+    pad.sprint = btn(5) || btn(7);
     pad.prev = gp.buttons.map(b => b.pressed);
   }
   function mergeInput() {
@@ -658,6 +697,7 @@
     IN.x = x; IN.y = y;
     IN.shoot = SHOOT.some(k => keys.has(k)) || tShoot || pad.shoot;
     IN.sprint = SPRINT.some(k => keys.has(k)) || tSprint || pad.sprint;
+    IN.curl = CURL.some(k => keys.has(k)) || tCurl || pad.curl;
   }
 
   // ---------- ciclo ----------
@@ -701,6 +741,10 @@
     onlineHalf: showOnlineHalf,
     onlineEnd: showOnlineEnd,
     backToLobby: openOnline
+  });
+  League.init({
+    save: () => save, persist, show, startMatch, crestEl, toMenu,
+    click: () => Sound.click()
   });
   startAttract();
   updateCupNote();
